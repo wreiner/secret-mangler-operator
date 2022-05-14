@@ -67,12 +67,17 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// create a secret
+	// build the secret
 	newsec := SecretBuilder(&secretMangler, r, ctx)
 	if newsec == nil {
 		return ctrl.Result{}, nil
 	}
-	r.Create(ctx, newsec)
+
+	// create secret on the cluster
+	if err := r.Create(ctx, newsec); err != nil {
+		log.Error(err, "unable to create secret for SecretMangler", secretMangler)
+		return ctrl.Result{}, err
+	}
 
 	// // read an existing secret
 	// var existingSecret v1.Secret
