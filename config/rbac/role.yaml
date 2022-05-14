@@ -1,0 +1,51 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets/status
+  verbs:
+  - get
+- apiGroups:
+  - secret-mangler.wreiner.at.secret-mangler.wreiner.at
+  resources:
+  - secretmanglers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - secret-mangler.wreiner.at.secret-mangler.wreiner.at
+  resources:
+  - secretmanglers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - secret-mangler.wreiner.at.secret-mangler.wreiner.at
+  resources:
+  - secretmanglers/status
+  verbs:
+  - get
+  - patch
+  - update
