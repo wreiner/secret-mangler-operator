@@ -149,6 +149,22 @@ func parseLookupString(lookupString string) (namespaceName string, existingSecre
 	return namespaceName, existingSecretName, existingSecretField, ok
 }
 
+func RetrieveSecret(existingSecretName, namespaceName string, r *SecretManglerReconciler, ctx context.Context) *v1.Secret {
+	log := log.FromContext(ctx)
+
+	var existingSecret v1.Secret
+
+	namespacedNameExistingSecret := types.NamespacedName{Namespace: namespaceName, Name: existingSecretName}
+
+	if err := r.Get(ctx, namespacedNameExistingSecret, &existingSecret); err != nil {
+		logMsg := fmt.Sprintf("unable to fetch secret %s/%s", namespaceName, existingSecretName)
+		log.Error(err, logMsg)
+		return nil
+	}
+
+	return &existingSecret
+}
+
 func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretManglerReconciler, ctx context.Context) *v1.Secret {
 	log := log.FromContext(ctx)
 
