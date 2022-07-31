@@ -76,7 +76,7 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if newSecret == nil {
 		return ctrl.Result{}, nil
 	}
-
+	log.Info("after builder")
 	// create secret on the cluster
 	existingSecret := RetrieveSecret(secretMangler.Spec.SecretTemplate.Name, secretMangler.Spec.SecretTemplate.Namespace, r, ctx)
 	if existingSecret == nil {
@@ -112,47 +112,6 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	fmt.Println("status updated")
-
-	// // read an existing secret
-	// var existingSecret v1.Secret
-	// fooID := types.NamespacedName{Namespace: "gitea", Name: "gitea-admin-secret"}
-	// if err := r.Get(ctx, fooID, &existingSecret); err != nil {
-	// 	log.Error(err, "unable to fetch gitea admin secret")
-	// }
-
-	// fmt.Println("--- debug 0 ---")
-	// fmt.Println(existingSecret.Data)
-	// fmt.Println("--- debug 0 ---")
-
-	// // r.Client.Get()
-
-	// fmt.Println("--- debug 1 ---")
-	// fmt.Println(secretMangler.Spec.SecretTemplate.Name)
-	// fmt.Println("--- debug 1 ---")
-
-	// fmt.Println("--- debug 2 ---")
-	// fmt.Println("--- map iteration")
-	// // https://stackoverflow.com/a/8018909
-	// for k, v := range secretMangler.Spec.SecretTemplate.Mappings {
-	// 	fmt.Println("k:", k, "v:", v)
-	// }
-	// fmt.Println("--- debug 2 ---")
-
-	// secret := &api.Secret{
-	// 	ObjectMeta: api.ObjectMeta{
-	// 		Name: secretMangler.Spec.NewName,
-	// 	},
-	// 	Data: map[string][]byte{
-	// 		keyName: buffer,
-	// 	},
-	// }
-
-	// secret := SecretBuilder(&secretMangler)
-
-	// log.V(1).Info("--- wreiner\n")
-	// spew.Dump(ctx)
-	// spew.Dump(secretMangler)
-	// log.V(1).Info("--- wreiner\n")
 
 	return ctrl.Result{}, nil
 }
@@ -250,7 +209,8 @@ func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretMangler
 		fmt.Println("----")
 	}
 
-	return &v1.Secret{
+	// Build the secret
+	newSecret := &v1.Secret{
 		ObjectMeta: v12.ObjectMeta{
 			Name:      secretManglerObject.Spec.SecretTemplate.Name,
 			Namespace: secretManglerObject.Spec.SecretTemplate.Namespace,
@@ -259,6 +219,18 @@ func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretMangler
 		Data: newData,
 		Type: "Opaque",
 	}
+
+	// Set the owner reference.
+	// This allows the Kubernetes garbage collector
+	// to clean up secrets when we delete the SecretMangler, and allows controller-runtime to figure out
+	// which SecretMangler needs to be reconciled when a given secret changes (is added, deleted, completes, etc).
+	if err := ctrl.SetControllerReference(secretManglerObject, newSecret, r.Scheme); err != nil {
+		fmt.Println("error in reference")
+		fmt.Print(err)
+		return nil
+	}
+
+	return newSecret
 }
 
 func OldSecretBuilder(cr *v1alpha1.SecretMangler) *v1.Secret {
