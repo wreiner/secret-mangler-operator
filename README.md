@@ -12,6 +12,7 @@ apiVersion: secret-mangler.wreiner.at.secret-mangler.wreiner.at/v1alpha1
 kind: SecretMangler
 metadata:
   name: mangler01
+  namespace: aha
 spec:
   secretTemplate:
     apiVersion: v1
@@ -44,6 +45,7 @@ apiVersion: secret-mangler.wreiner.at.secret-mangler.wreiner.at/v1alpha1
 kind: SecretMangler
 metadata:
   name: mangler01
+  namespace: aha
 spec:
   secretTemplate:
     apiVersion: v1
@@ -52,6 +54,8 @@ spec:
     name: "mangler01-secret"
     mirror: <[NAMESPACE/]OBJECT_NAME:LOOKUP_FIELD>
 ```
+
+Please note: The SecretMangler object needs to be added in the same namespace as the secret it should generate.
 
 ### mirror vs mappings
 

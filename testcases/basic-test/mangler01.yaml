@@ -2,6 +2,7 @@ apiVersion: secret-mangler.wreiner.at.secret-mangler.wreiner.at/v1alpha1
 kind: SecretMangler
 metadata:
   name: mangler01
+  namespace: aha
 spec:
   secretTemplate:
     apiVersion: v1
@@ -11,18 +12,3 @@ spec:
     mappings:
       fixedmapping: "fixedmapping-val"
       dynamicmapping: "<aha/mangler-secret:test>"
-  # schedule: "*/1 * * * *"
-  # startingDeadlineSeconds: 60
-  # concurrencyPolicy: Allow # explicitly specify, but Allow is also default.
-  # jobTemplate:
-  #   spec:
-  #     template:
-  #       spec:
-  #         containers:
-  #         - name: hello
-  #           image: busybox
-  #           args:
-  #           - /bin/sh
-  #           - -c
-  #           - date; echo Hello from the Kubernetes cluster
-  #         restartPolicy: OnFailure
