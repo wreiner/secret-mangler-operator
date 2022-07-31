@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -67,17 +68,50 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	msg := fmt.Sprintf("received reconcile request for %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+	log.Info(msg)
+
 	// build the secret
-	newsec := SecretBuilder(&secretMangler, r, ctx)
-	if newsec == nil {
+	newSecret := SecretBuilder(&secretMangler, r, ctx)
+	if newSecret == nil {
 		return ctrl.Result{}, nil
 	}
 
 	// create secret on the cluster
-	if err := r.Create(ctx, newsec); err != nil {
-		log.Error(err, "unable to create secret for SecretMangler", secretMangler)
+	existingSecret := RetrieveSecret(secretMangler.Spec.SecretTemplate.Name, secretMangler.Spec.SecretTemplate.Namespace, r, ctx)
+	if existingSecret == nil {
+		msg = fmt.Sprintf("will create secret for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+		log.Info(msg)
+
+		if err := r.Create(ctx, newSecret); err != nil {
+			log.Error(err, "unable to create secret for SecretMangler")
+			return ctrl.Result{}, err
+		}
+	} else {
+		eq := reflect.DeepEqual(existingSecret.Data, newSecret.Data)
+		if !eq {
+			msg = fmt.Sprintf("will update secret for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+			log.Info(msg)
+			if err := r.Update(ctx, newSecret); err != nil {
+				log.Error(err, "unable to update secret for SecretMangler")
+				return ctrl.Result{}, err
+			}
+		}
+	}
+
+	// msg = fmt.Sprintf("secret was created for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+	// log.Info(msg)
+
+	// set status to true
+	secretMangler.Status.SecretCreated = true
+
+	// .. and update the status
+	if err := r.Status().Update(ctx, &secretMangler); err != nil {
+		log.Error(err, "unable to update SecretMangler status")
 		return ctrl.Result{}, err
 	}
+
+	fmt.Println("status updated")
 
 	// // read an existing secret
 	// var existingSecret v1.Secret
@@ -216,8 +250,6 @@ func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretMangler
 		fmt.Println("----")
 	}
 
-	fmt.Println(newData)
-
 	return &v1.Secret{
 		ObjectMeta: v12.ObjectMeta{
 			Name:      secretManglerObject.Spec.SecretTemplate.Name,
@@ -285,5 +317,6 @@ func (r *SecretManglerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&secretmanglerwreineratv1alpha1.SecretMangler{}).
+		Owns(&v1.Secret{}).
 		Complete(r)
 }
