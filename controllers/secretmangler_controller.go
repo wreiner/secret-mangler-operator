@@ -28,7 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler" // Required for Watching
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"gitea.wreiner.at/wreiner/secret-mangler/api/v1alpha1"
 	secretmanglerwreineratv1alpha1 "gitea.wreiner.at/wreiner/secret-mangler/api/v1alpha1"
@@ -88,6 +91,13 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, err
 		}
 	} else {
+		// with KeepNoAction the existing secret which was created on an earlier run will be kept as is
+		if secretMangler.Spec.SecretTemplate.CascadeMode == "KeepNoAction" {
+			msg = fmt.Sprintf("will not attempt sync because cascademode KeepNoAction for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+			log.Info(msg)
+			return ctrl.Result{}, nil
+		}
+
 		eq := reflect.DeepEqual(existingSecret.Data, newSecret.Data)
 		if !eq {
 			msg = fmt.Sprintf("will update secret for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
@@ -116,15 +126,24 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
-// Will parse a lookupString used in mappings.
+// IsLookupString checks if a string starts with < and ends with > which indicates a lookup string.
+func IsLookupString(lookupString string) (isLookupString bool) {
+	if strings.HasPrefix(lookupString, "<") && strings.HasSuffix(lookupString, ">") {
+		return true
+	}
+	return false
+}
+
+// ParseLookupString will parse a lookupString used in mappings or mirror.
 // If no namespace was given an empty string will be returned instead of a namespace.
 // If the lookupString does not at least contain a secret and a field reference false will be returned for ok.
-func parseLookupString(lookupString string) (namespaceName string, existingSecretName string, existingSecretField string, ok bool) {
+func ParseLookupString(lookupString string) (namespaceName string, existingSecretName string, existingSecretField string, ok bool) {
 	var newFieldValue string
 
 	// split by / indicates a provided namespace of the secret to lookup
 	splitArray := strings.Split(lookupString, "/")
 	if len(splitArray) > 1 {
+		// remove now unneeded characters
 		namespaceName = strings.TrimLeft(splitArray[0], "<")
 		newFieldValue = strings.TrimRight(splitArray[1], ">")
 	}
@@ -142,6 +161,7 @@ func parseLookupString(lookupString string) (namespaceName string, existingSecre
 	return namespaceName, existingSecretName, existingSecretField, ok
 }
 
+// RetrieveSecret retrieves a secret from the Kubernetes cluster with a given Name and Namespace.
 func RetrieveSecret(existingSecretName, namespaceName string, r *SecretManglerReconciler, ctx context.Context) *v1.Secret {
 	log := log.FromContext(ctx)
 
@@ -158,6 +178,8 @@ func RetrieveSecret(existingSecretName, namespaceName string, r *SecretManglerRe
 	return &existingSecret
 }
 
+// SecretBuilder generates a secret based on a SecretMangler object with all data and metadata.
+// The secret will not be applied to the Kubernetes cluster.
 func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretManglerReconciler, ctx context.Context) *v1.Secret {
 	log := log.FromContext(ctx)
 
@@ -167,10 +189,10 @@ func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretMangler
 		fmt.Println("newField:", newField, "newFieldValue:", newFieldValue)
 
 		// check if value should be treated as a lookupString
-		if strings.HasPrefix(newFieldValue, "<") && strings.HasSuffix(newFieldValue, ">") {
+		if IsLookupString(newFieldValue) {
 			fmt.Printf("value of field %s indicates a dynamic field\n", newField)
 
-			namespaceName, existingSecretName, existingSecretField, ok := parseLookupString(newFieldValue)
+			namespaceName, existingSecretName, existingSecretField, ok := ParseLookupString(newFieldValue)
 			if ok == false {
 				logMsg := fmt.Sprintf("dynamic mapping %s contains a faulty lookup string %s", newField, newFieldValue)
 				// FIXME log correctly
@@ -290,5 +312,84 @@ func (r *SecretManglerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&secretmanglerwreineratv1alpha1.SecretMangler{}).
 		Owns(&v1.Secret{}).
+		Watches(
+			&source.Kind{Type: &v1.Secret{}},
+			handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
+				fmt.Println("in function")
+				secret, ok := obj.(*v1.Secret)
+				if !ok {
+					// FIXME
+					fmt.Println("secret is nil?")
+					return nil
+				}
+
+				fmt.Printf("Secret [%s/%s] changed, checking for corresponding SecretMangler object ..", secret.Namespace, secret.Name)
+
+				var reconcileRequests []reconcile.Request
+				secretManglerList := &secretmanglerwreineratv1alpha1.SecretManglerList{}
+				client := mgr.GetClient()
+
+				err := client.List(context.TODO(), secretManglerList)
+				if err != nil {
+					return []reconcile.Request{}
+				}
+
+				for _, secretManglerObj := range secretManglerList.Items {
+					// FIXME needed when mirror is implemented
+					// if secretManglerObj.Spec.SecretTemplate.Mirror != "" {
+
+					// }
+					if len(secretManglerObj.Spec.SecretTemplate.Mappings) != 0 {
+						for field, fieldValue := range secretManglerObj.Spec.SecretTemplate.Mappings {
+							if IsLookupString(fieldValue) {
+								// get namespace and name from the dynamic field
+								// if current secret is part of the dynamic field add to reconciliation request
+								fmt.Printf("value [%s] of field %s indicates a dynamic field\n", fieldValue, field)
+
+								referencedSecretNamespaceName, referencedSecretName, _, ok := ParseLookupString(fieldValue)
+								if ok == false {
+									logMsg := fmt.Sprintf("dynamic mapping %s contains a faulty lookup string %s", field, fieldValue)
+									// FIXME log correctly
+									// log.Error(logMsg)
+									fmt.Println(logMsg)
+									return nil
+								}
+
+								// check if secretNames match
+								if secret.Name == referencedSecretName {
+									// if no explicit namesapce is given in the mapping the namespace of the SecretMangler object is used
+									if referencedSecretNamespaceName == "" {
+										// i think it's wrong
+										// referencedSecretNamespaceName = secretManglerObj.Spec.SecretTemplate.Namespace
+										referencedSecretNamespaceName = secretManglerObj.Namespace
+									}
+
+									fmt.Printf("found reference to [%s/%s]\n", referencedSecretNamespaceName, referencedSecretName)
+
+									// check if the secret is in the same namespace
+									if referencedSecretNamespaceName == secret.Namespace {
+										fmt.Printf("will add SecretMangler object [%s/%s] to reconciliation requests ..\n", secretManglerObj.Namespace, secretManglerObj.Name)
+										// append secretMangler to reconcileRequests
+										reconcileRequests = append(reconcileRequests, reconcile.Request{
+											NamespacedName: types.NamespacedName{
+												Name:      secretManglerObj.Name,
+												Namespace: secretManglerObj.Namespace,
+											},
+										})
+
+										// we can break now and check next SecretMangler object
+										break
+									}
+								}
+							}
+
+						}
+					}
+				}
+
+				fmt.Println("will leave function")
+				return reconcileRequests
+			}),
+		).
 		Complete(r)
 }

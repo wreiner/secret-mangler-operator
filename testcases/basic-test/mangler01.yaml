@@ -9,6 +9,7 @@ spec:
     kind: Secret
     namespace: aha
     name: "mangler01-secret"
+    cascadeMode: "KeepLostSync"
     mappings:
       fixedmapping: "fixedmapping-val"
       dynamicmapping: "<aha/mangler-secret:test>"

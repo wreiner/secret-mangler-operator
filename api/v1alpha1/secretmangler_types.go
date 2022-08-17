@@ -39,6 +39,34 @@ type SecretManglerStatus struct {
 	SecretCreated bool `json:"secretCreated"`
 }
 
+// CascadeMode describes edge cases in handling secret syncing.
+// Only one of the following cascacde modes may be specified.
+// If none of the following modes is specified, the default one
+// is KeepNoAction.
+// +kubebuilder:validation:Enum=KeepNoAction;KeepLostSync;RemoveLostSync;CascadeDelete
+type CascadeMode string
+
+const (
+	// KeepNoAction keeps the secret it was initially created and no sync of
+	// changes in referenced secrets is performed.
+	KeepNoAction CascadeMode = "KeepNoAction"
+
+	// KeepLostSync tries to sync data from referenced secrets.
+	// If one or more sources are lost their data is kept as it was synced last.
+	KeepLostSync CascadeMode = "KeepLostSync"
+
+	// RemoveLostSync tries to sync data from referenced secrets.
+	// If one or more sources re lost their data will be removed from the
+	// created secret.
+	// If no more sources are available and no fixed values are present the
+	// secret will be removed as a whole.
+	RemoveLostSync CascadeMode = "RemoveLostSync"
+
+	// CascadeDelete removes the secret entirely if only one source is lost no
+	// matter whether other sources are still present or not.
+	CascadeDelete CascadeMode = "CascadeDelete"
+)
+
 type SecretTemplateStruct struct {
 	Name       string `json:"name"`
 	APIVersion string `json:"apiVersion"`
@@ -47,8 +75,9 @@ type SecretTemplateStruct struct {
 	Namespace  string `json:"namespace"`
 	// Label      metav1.LabelSelector `json:"label,omitempty"`
 	// Namespace  metav1.LabelSelector `json:"namespace"`
-	Annotation map[string]string `json:"annotation,omitempty"`
-	Mappings   map[string]string `json:"mappings"`
+	Annotation  map[string]string `json:"annotation,omitempty"`
+	Mappings    map[string]string `json:"mappings"`
+	CascadeMode CascadeMode       `json:"cascadeMode,omitempty"`
 }
 
 //+kubebuilder:object:root=true
