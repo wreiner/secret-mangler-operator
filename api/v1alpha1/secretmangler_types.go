@@ -58,7 +58,7 @@ const (
 	// RemoveLostSync tries to sync data from referenced secrets.
 	// If one or more sources re lost their data will be removed from the
 	// created secret.
-	// If no more sources are available and no fixed values are present the
+	// If no more sources are available and no fixed mappings are present the
 	// secret will be removed as a whole.
 	RemoveLostSync CascadeMode = "RemoveLostSync"
 

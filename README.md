@@ -84,7 +84,7 @@ cascadeMode: [KeepNoAction|KeepLostSync|RemoveLostSync|CascadeDelete]
   * [X] KeepNoAction = keep as is - keep the new secret the way it was initially created and do not sync changes of sources
   * [ ] KeepLostSync = keep lost but sync present - if one source was deleted keep existing data but update all sources which can be found
   * [ ] RemoveLostSync = remove lost and sync present - if one source was delted remove its data and sync all other sources
-    * if no more sources and no fixeddata is present delete the secret
+    * if no more sources and no fixedmapping is present delete the secret
   * [ ] CascadeDelete = cascade delete - if one source was deleted remove the complete generated secret
 
 ## ToDo
