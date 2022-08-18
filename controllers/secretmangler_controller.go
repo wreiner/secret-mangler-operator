@@ -178,9 +178,8 @@ func RetrieveSecret(existingSecretName, namespaceName string, r *SecretManglerRe
 	return &existingSecret
 }
 
-// SecretBuilder generates a secret based on a SecretMangler object with all data and metadata.
-// The secret will not be applied to the Kubernetes cluster.
-func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretManglerReconciler, ctx context.Context) *v1.Secret {
+// DataBuilder generates the data mappings of a secret from a SecretBuilder object.
+func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretManglerReconciler, ctx context.Context) *map[string][]byte {
 	log := log.FromContext(ctx)
 
 	newData := map[string][]byte{}
@@ -231,14 +230,25 @@ func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretMangler
 		fmt.Println("----")
 	}
 
-	// Build the secret
+	return &newData
+}
+
+// SecretBuilder generates a secret based on a SecretMangler object with all data and metadata.
+// The secret will not be applied to the Kubernetes cluster.
+func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretManglerReconciler, ctx context.Context) *v1.Secret {
+	// Build the data mappings of the secret
+	newData := DataBuilder(secretManglerObject, r, ctx)
+
+	// FIXME add annotations to the secretmangler object?
+
+	// Build the whole secret
 	newSecret := &v1.Secret{
 		ObjectMeta: v12.ObjectMeta{
 			Name:      secretManglerObject.Spec.SecretTemplate.Name,
 			Namespace: secretManglerObject.Spec.SecretTemplate.Namespace,
 			// Labels: secretManglerObject.Spec.SecretTemplate.Label,*
 		},
-		Data: newData,
+		Data: *newData,
 		Type: "Opaque",
 	}
 
@@ -382,7 +392,6 @@ func (r *SecretManglerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 									}
 								}
 							}
-
 						}
 					}
 				}
