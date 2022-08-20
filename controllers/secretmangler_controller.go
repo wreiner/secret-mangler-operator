@@ -19,7 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -74,16 +73,20 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	msg := fmt.Sprintf("received reconcile request for %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
 	log.Info(msg)
 
+	existingSecret := RetrieveSecret(secretMangler.Spec.SecretTemplate.Name, secretMangler.Spec.SecretTemplate.Namespace, r, ctx)
+	if existingSecret == nil {
+		// create secret on the cluster
+
 	// build the secret
-	newSecret := SecretBuilder(&secretMangler, r, ctx)
+		newSecret := SecretBuilder(&secretMangler, nil, r, ctx)
 	if newSecret == nil {
+			msg = fmt.Sprintf("building the secret failed for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
+			log.Info(msg)
 		return ctrl.Result{}, nil
 	}
 	log.Info("after builder")
-	// create secret on the cluster
-	existingSecret := RetrieveSecret(secretMangler.Spec.SecretTemplate.Name, secretMangler.Spec.SecretTemplate.Namespace, r, ctx)
-	if existingSecret == nil {
-		msg = fmt.Sprintf("will create secret for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+
+		msg = fmt.Sprintf("will create secret for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
 		log.Info(msg)
 
 		if err := r.Create(ctx, newSecret); err != nil {
@@ -91,6 +94,8 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, err
 		}
 	} else {
+		// work on a previously created secret
+
 		// with KeepNoAction the existing secret which was created on an earlier run will be kept as is
 		if secretMangler.Spec.SecretTemplate.CascadeMode == "KeepNoAction" {
 			msg = fmt.Sprintf("will not attempt sync because cascademode KeepNoAction for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
@@ -98,15 +103,60 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			return ctrl.Result{}, nil
 		}
 
-		eq := reflect.DeepEqual(existingSecret.Data, newSecret.Data)
-		if !eq {
-			msg = fmt.Sprintf("will update secret for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+		// get updated secret data
+		newData := DataBuilder(&secretMangler, false, r, ctx)
+		if newData == nil {
+			msg = fmt.Sprintf("building secret data failed for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
 			log.Info(msg)
-			if err := r.Update(ctx, newSecret); err != nil {
-				log.Error(err, "unable to update secret for SecretMangler")
-				return ctrl.Result{}, err
+			return ctrl.Result{}, nil
 			}
+
+		for checkKey, checkValue := range existingSecret.Data {
+			fmt.Printf("got [%s: %b] ..\n", checkKey, checkValue)
+			// https://stackoverflow.com/a/36463704
+			if val, ok := (*newData)[checkKey]; ok {
+				// when the key is found in the new map it is already newest
+				// so nothing is todo in this case so we can continue on
+				fmt.Printf("found key [%s: %b] in newData\n", checkKey, val)
+				continue
+				// if comp := bytes.Compare(val, checkValue); comp == 0 {
+				// 	fmt.Printf("values are equal\n")
+				// 	continue
+				// }
+			} else {
+				if secretMangler.Spec.SecretTemplate.CascadeMode == "KeepLostSync" {
+					msg = fmt.Sprintf("keeping key %s because of KeepLostSync for reconcile request [%q/%q]",
+						checkKey, secretMangler.GetNamespace(), secretMangler.GetName())
+					log.Info(msg)
+					fmt.Printf("KeepLostSync\n")
+					// keep old data which was lost in this reconcile run
+					(*newData)[checkKey] = checkValue
+				} else if secretMangler.Spec.SecretTemplate.CascadeMode == "RemoveLostSync" {
+					// FIXME remove secret if newData is empty
+					fmt.Printf("RemoveLostSync\n")
+					// just log the message
+					msg = fmt.Sprintf("removing key %s from data because of RemoveLostSync for reconcile request [%q/%q]",
+						checkKey, secretMangler.GetNamespace(), secretMangler.GetName())
+					log.Info(msg)
+				} else if secretMangler.Spec.SecretTemplate.CascadeMode == "CascadeDelete" {
+					fmt.Printf("CascadeDelete\n")
+					msg = fmt.Sprintf("removing complete secret because of CascadeDelete for reconcile request [%q/%q]",
+						secretMangler.GetNamespace(), secretMangler.GetName())
+					log.Info(msg)
+					// FIXME delete secret and return out
 		}
+	}
+		}
+
+		// eq := reflect.DeepEqual(existingSecret.Data, newSecret.Data)
+		// if !eq {
+		// 	msg = fmt.Sprintf("will update secret for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+		// 	log.Info(msg)
+		// 	if err := r.Update(ctx, newSecret); err != nil {
+		// 		log.Error(err, "unable to update secret for SecretMangler")
+		// 		return ctrl.Result{}, err
+		// 	}
+		// }
 	}
 
 	// msg = fmt.Sprintf("secret was created for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
@@ -179,7 +229,7 @@ func RetrieveSecret(existingSecretName, namespaceName string, r *SecretManglerRe
 }
 
 // DataBuilder generates the data mappings of a secret from a SecretBuilder object.
-func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretManglerReconciler, ctx context.Context) *map[string][]byte {
+func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, returnOnSourceNotFound bool, r *SecretManglerReconciler, ctx context.Context) *map[string][]byte {
 	log := log.FromContext(ctx)
 
 	newData := map[string][]byte{}
@@ -209,10 +259,12 @@ func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretManglerRe
 			var existingSecret v1.Secret
 			namespacedNameExistingSecret := types.NamespacedName{Namespace: namespaceName, Name: existingSecretName}
 			if err := r.Get(ctx, namespacedNameExistingSecret, &existingSecret); err != nil {
-				// FIXME handle special cases
 				logMsg := fmt.Sprintf("unable to fetch secret %s/%s", namespaceName, existingSecretName)
 				log.Error(err, logMsg)
+				if returnOnSourceNotFound {
 				return nil
+			}
+				continue
 			}
 
 			// https://stackoverflow.com/a/2050629
@@ -235,9 +287,11 @@ func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretManglerRe
 
 // SecretBuilder generates a secret based on a SecretMangler object with all data and metadata.
 // The secret will not be applied to the Kubernetes cluster.
-func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, r *SecretManglerReconciler, ctx context.Context) *v1.Secret {
-	// Build the data mappings of the secret
-	newData := DataBuilder(secretManglerObject, r, ctx)
+func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, newData *map[string][]byte, r *SecretManglerReconciler, ctx context.Context) *v1.Secret {
+	// Build the data mappings of the secret if it is not given
+	if newData == nil {
+		newData = DataBuilder(secretManglerObject, true, r, ctx)
+	}
 
 	// FIXME add annotations to the secretmangler object?
 
