@@ -67,9 +67,9 @@ If mappings is defined mirror can not be defined too.
 
 ### Edge Cases
 
-It is yet to be determined how to handle different [edge cases](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#object-references).
+There are different [edge cases](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#object-references) which need to be taken care of or at least be discussed when working with objects accross multiple namespaces.
 
-An idea is to add a _cascadeMode_ field like this:
+The SecretMangler operator handles those edge cases with an _cascadeMode_ field:
 
 ```
 cascadeMode: [KeepNoAction|KeepLostSync|RemoveLostSync|CascadeDelete]
@@ -78,18 +78,18 @@ cascadeMode: [KeepNoAction|KeepLostSync|RemoveLostSync|CascadeDelete]
 #### Workflow
 
 * Initial secret creation
-  * [ ] If not all dynamic mappings are found do not create
+  * [X] If not all dynamic mappings are found do not create
   * [X] Create the new secret if all dynamic mappings are found
 * If the new secret was created earlier and a reference gets changed handle it with:
   * [X] KeepNoAction = keep as is - keep the new secret the way it was initially created and do not sync changes of sources
-  * [ ] KeepLostSync = keep lost but sync present - if one source was deleted keep existing data but update all sources which can be found
-  * [ ] RemoveLostSync = remove lost and sync present - if one source was delted remove its data and sync all other sources
-    * if no more sources and no fixedmapping is present delete the secret
-  * [ ] CascadeDelete = cascade delete - if one source was deleted remove the complete generated secret
+  * [X] KeepLostSync = keep lost but sync present - if one source was deleted keep existing data but update all sources which can be found
+  * [X] RemoveLostSync = remove lost and sync present - if one source was delted remove its data and sync all other sources
+    * [X] if no more sources and no fixedmapping is present delete the secret
+  * [X] CascadeDelete = cascade delete - if one source was deleted remove the complete generated secret
 
 ## ToDo
 
-* [ ] subscribe to created secret to handle
+* [X] subscribe to created secret to handle
 * [X] subscribe to source secret
 * [ ] implement mirror function
 * [X] define edge cases
