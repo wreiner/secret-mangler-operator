@@ -19,6 +19,7 @@ spec:
     kind: Secret
     namespace: aha
     name: "mangler01-secret"
+    cascadeMode: [KeepNoAction|KeepLostSync|RemoveLostSync|CascadeDelete]
     mappings:
       fixedmapping: "some-value-which-will-used-as-is"
       dynamicmapping: "[NAMESPACE/]OBJECT_NAME:LOOKUP_FIELD"
