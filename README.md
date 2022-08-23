@@ -8,7 +8,7 @@ An example for a secret constructed from parts of other secrets would look like 
 
 ```
 ---
-apiVersion: secret-mangler.wreiner.at.secret-mangler.wreiner.at/v1alpha1
+apiVersion: secret-mangler.wreiner.at/v1alpha1
 kind: SecretMangler
 metadata:
   name: mangler01
@@ -85,7 +85,7 @@ An example for mirroring a secret:
 
 ```
 ---
-apiVersion: secret-mangler.wreiner.at.secret-mangler.wreiner.at/v1alpha1
+apiVersion: secret-mangler.wreiner.at/v1alpha1
 kind: SecretMangler
 metadata:
   name: mangler01
