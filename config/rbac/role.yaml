@@ -24,7 +24,7 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - secret-mangler.wreiner.at.secret-mangler.wreiner.at
+  - secret-mangler.wreiner.at
   resources:
   - secretmanglers
   verbs:
@@ -36,13 +36,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - secret-mangler.wreiner.at.secret-mangler.wreiner.at
+  - secret-mangler.wreiner.at
   resources:
   - secretmanglers/finalizers
   verbs:
   - update
 - apiGroups:
-  - secret-mangler.wreiner.at.secret-mangler.wreiner.at
+  - secret-mangler.wreiner.at
   resources:
   - secretmanglers/status
   verbs:

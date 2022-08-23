@@ -1,4 +1,4 @@
-# secret-mangler
+# secret-mangler-operator
 
 SecretMangler is a Kubernetes operator used to create secrets based on parts of other secrets or to mirror existing secrets.
 

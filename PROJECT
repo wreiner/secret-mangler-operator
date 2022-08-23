@@ -2,15 +2,14 @@ domain: secret-mangler.wreiner.at
 layout:
 - go.kubebuilder.io/v3
 projectName: secret-mangler-operator
-repo: gitea.wreiner.at/wreiner/secret-mangler
+repo: github.com/wreiner/secret-mangler-operator
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
   domain: secret-mangler.wreiner.at
-  group: secret-mangler.wreiner.at
   kind: SecretMangler
-  path: gitea.wreiner.at/wreiner/secret-mangler/api/v1alpha1
+  path: github.com/wreiner/secret-mangler-operator/api/v1alpha1
   version: v1alpha1
 version: "3"
