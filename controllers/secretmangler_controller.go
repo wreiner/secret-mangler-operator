@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -27,13 +28,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler" // Required for Watching
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"gitea.wreiner.at/wreiner/secret-mangler/api/v1alpha1"
-	secretmanglerwreineratv1alpha1 "gitea.wreiner.at/wreiner/secret-mangler/api/v1alpha1"
+	"github.com/wreiner/secret-mangler-operator/api/v1alpha1"
+	secretmanglerwreineratv1alpha1 "github.com/wreiner/secret-mangler-operator/api/v1alpha1"
 )
 
 // SecretManglerReconciler reconciles a SecretMangler object
@@ -42,22 +43,14 @@ type SecretManglerReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=secret-mangler.wreiner.at.secret-mangler.wreiner.at,resources=secretmanglers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=secret-mangler.wreiner.at.secret-mangler.wreiner.at,resources=secretmanglers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=secret-mangler.wreiner.at.secret-mangler.wreiner.at,resources=secretmanglers/finalizers,verbs=update
+//+kubebuilder:rbac:groups=secret-mangler.wreiner.at,resources=secretmanglers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=secret-mangler.wreiner.at,resources=secretmanglers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=secret-mangler.wreiner.at,resources=secretmanglers/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=secrets/status,verbs=get
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the SecretMangler object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.0/pkg/reconcile
-
 func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 
@@ -224,8 +217,7 @@ func CompareExistingSecretDataToNewData(secretManglerObject *v1alpha1.SecretMang
 		}
 
 		if secretManglerObject.Spec.SecretTemplate.CascadeMode == "KeepLostSync" {
-			logMsg = fmt.Sprintf("keeping key %s because of KeepLostSync for reconcile request [%q/%q]",
-				checkKey, secretManglerObject.GetNamespace(), secretManglerObject.GetName())
+			logMsg = fmt.Sprintf("keeping key %s because of KeepLostSync", checkKey)
 			log.Info(logMsg)
 
 			// keep old data which was lost in this reconcile run
@@ -236,16 +228,14 @@ func CompareExistingSecretDataToNewData(secretManglerObject *v1alpha1.SecretMang
 
 		} else if secretManglerObject.Spec.SecretTemplate.CascadeMode == "RemoveLostSync" {
 			// just log the message
-			logMsg = fmt.Sprintf("removing key %s from data because of RemoveLostSync for reconcile request [%q/%q]",
-				checkKey, secretManglerObject.GetNamespace(), secretManglerObject.GetName())
+			logMsg = fmt.Sprintf("removing key %s from data because of RemoveLostSync", checkKey)
 			log.Info(logMsg)
 			needUpdate = true
 
 			secretManglerObject.Status.LastAction = "RemoveLostSync"
 
 		} else if secretManglerObject.Spec.SecretTemplate.CascadeMode == "CascadeDelete" {
-			logMsg = fmt.Sprintf("removing complete secret because of CascadeDelete for reconcile request [%q/%q]",
-				secretManglerObject.GetNamespace(), secretManglerObject.GetName())
+			logMsg = fmt.Sprintf("removing complete secret because of CascadeDelete")
 			log.Info(logMsg)
 
 			secretManglerObject.Status.LastAction = "CascadeDelete"
@@ -257,8 +247,7 @@ func CompareExistingSecretDataToNewData(secretManglerObject *v1alpha1.SecretMang
 
 	// sanity check - if newData is empty delete the secret as there is no more data to store in the secret
 	if len(*newData) == 0 {
-		logMsg = fmt.Sprintf("removing complete secret because there is no data to store for reconcile request [%q/%q]",
-			secretManglerObject.GetNamespace(), secretManglerObject.GetName())
+		logMsg = fmt.Sprintf("removing complete secret because there is no data to store")
 		log.Info(logMsg)
 		return 2
 	} else {
@@ -335,7 +324,7 @@ func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, newData *map[strin
 
 			// https://stackoverflow.com/a/2050629
 			if existingSecretFieldValue, found := existingSecret.Data[existingSecretField]; found {
-				fmt.Printf("will add %s: %s to newData ..\n", newField, existingSecretField)
+				fmt.Printf("will add %s: %s to newData ..\n", newField, existingSecretFieldValue)
 				(*newData)[newField] = existingSecretFieldValue
 			}
 		} else {

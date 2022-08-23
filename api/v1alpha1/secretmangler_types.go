@@ -20,22 +20,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // SecretManglerSpec defines the desired state of SecretMangler
 type SecretManglerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of SecretMangler. Edit secretmangler_types.go to remove/update
+	// SecretTemplate is the template structure of the new secret to create.
 	SecretTemplate SecretTemplateStruct `json:"secretTemplate"`
 }
 
 // SecretManglerStatus defines the observed state of SecretMangler
 type SecretManglerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 	SecretCreated bool   `json:"secretCreated"`
 	LastAction    string `json:"lastAction"`
 }
