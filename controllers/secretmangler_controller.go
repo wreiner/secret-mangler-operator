@@ -70,7 +70,7 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	msg := fmt.Sprintf("received reconcile request for %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+	msg := fmt.Sprintf("received reconcile request ..")
 	log.Info(msg)
 
 	existingSecret := RetrieveSecret(secretMangler.Spec.SecretTemplate.Name, secretMangler.Spec.SecretTemplate.Namespace, r, ctx)
@@ -78,93 +78,94 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// create secret on the cluster
 		log.Info("did not find existing secret, will try to create new secret ..")
 
-	// build the secret
+		// build the secret
 		newSecret := SecretBuilder(&secretMangler, nil, r, ctx)
-	if newSecret == nil {
-			msg = fmt.Sprintf("building the secret failed for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
+		if newSecret == nil {
+			msg = fmt.Sprintf("building the secret failed ..")
 			log.Info(msg)
-		return ctrl.Result{}, nil
-	}
-	log.Info("after builder")
+			return ctrl.Result{}, nil
+		}
+		log.Info("after builder")
 
-		msg = fmt.Sprintf("will create secret for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
+		msg = fmt.Sprintf("will create secret ..")
 		log.Info(msg)
 
 		if err := r.Create(ctx, newSecret); err != nil {
 			log.Error(err, "unable to create secret for SecretMangler")
 			return ctrl.Result{}, err
 		}
+
+		secretMangler.Status.SecretCreated = true
+		secretMangler.Status.LastAction = "Create"
 	} else {
 		// work on a previously created secret
 		log.Info("found existing secret, will check fields ..")
 
 		// with KeepNoAction the existing secret which was created on an earlier run will be kept as is
 		if secretMangler.Spec.SecretTemplate.CascadeMode == "KeepNoAction" {
-			msg = fmt.Sprintf("will not attempt sync because cascademode KeepNoAction for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+			msg = fmt.Sprintf("will not attempt sync because cascademode KeepNoAction ..")
 			log.Info(msg)
+
 			return ctrl.Result{}, nil
 		}
 
 		// get updated secret data
 		newData := make(map[string][]byte)
-		error := DataBuilder(&secretMangler, &newData, false, r, ctx)
-		if error == false {
-			msg = fmt.Sprintf("building secret data failed for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
+		ok := DataBuilder(&secretMangler, &newData, false, r, ctx)
+		if ok == false {
+			msg = fmt.Sprintf("building secret data failed.")
 			log.Info(msg)
 			return ctrl.Result{}, nil
-			}
+		}
 
 		actionIndicator := CompareExistingSecretDataToNewData(&secretMangler, &existingSecret.Data, &newData, ctx)
 		switch actionIndicator {
 		case 0:
 			// nothing todo
-			msg = fmt.Sprintf("secret data has not changed for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
-					log.Info(msg)
+			msg = fmt.Sprintf("secret data has not changed")
+			log.Info(msg)
 			return ctrl.Result{}, nil
+
 		case 1:
 			// update needed
-			msg = fmt.Sprintf("secret data has changed, will update for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
-					log.Info(msg)
+			msg = fmt.Sprintf("secret data has changed, will update ..")
+			log.Info(msg)
 
 			// build the secret
 			newSecret := SecretBuilder(&secretMangler, &newData, r, ctx)
 			if newSecret == nil {
-				msg = fmt.Sprintf("building the secret failed for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
-					log.Info(msg)
+				msg = fmt.Sprintf("building the secret failed")
+				log.Info(msg)
 				return ctrl.Result{}, nil
-		}
-			log.Info("after builder")
+			}
 
 			if err := r.Update(ctx, newSecret); err != nil {
-				log.Error(err, "unable to update secret for for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
+				log.Error(err, "unable to update secret")
 				return ctrl.Result{}, err
-	}
+			}
+
 		case 2:
 			// delete needed
-			msg = fmt.Sprintf("secret will be deleted for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
+			msg = fmt.Sprintf("secret will be deleted ..")
 			log.Info(msg)
 
 			if err := r.Delete(ctx, existingSecret); err != nil {
-				log.Error(err, "unable to delete secret for for reconcile request [%q/%q]", secretMangler.GetNamespace(), secretMangler.GetName())
+				log.Error(err, "unable to delete secret")
 				return ctrl.Result{}, err
-		}
+			}
+
+			secretMangler.Status.SecretCreated = false
 		}
 	}
 
-	msg = fmt.Sprintf("secret was worked on, now status for reconcile request %q (namespace: %q)", secretMangler.GetName(), secretMangler.GetNamespace())
+	msg = fmt.Sprintf("secret updated, will now update status ..")
 	log.Info(msg)
 
-	// FIXME set useful status
-	// set status to true
-	secretMangler.Status.SecretCreated = true
-
-	// .. and update the status
+	// update the status
 	if err := r.Status().Update(ctx, &secretMangler); err != nil {
 		log.Error(err, "unable to update SecretMangler status")
 		return ctrl.Result{}, err
 	}
-
-	fmt.Println("status updated")
 
 	return ctrl.Result{}, nil
 }
@@ -231,16 +232,23 @@ func CompareExistingSecretDataToNewData(secretManglerObject *v1alpha1.SecretMang
 			(*newData)[checkKey] = checkValue
 			needUpdate = true
 
+			secretManglerObject.Status.LastAction = "KeepLostSync"
+
 		} else if secretManglerObject.Spec.SecretTemplate.CascadeMode == "RemoveLostSync" {
 			// just log the message
 			logMsg = fmt.Sprintf("removing key %s from data because of RemoveLostSync for reconcile request [%q/%q]",
 				checkKey, secretManglerObject.GetNamespace(), secretManglerObject.GetName())
 			log.Info(logMsg)
+			needUpdate = true
+
+			secretManglerObject.Status.LastAction = "RemoveLostSync"
 
 		} else if secretManglerObject.Spec.SecretTemplate.CascadeMode == "CascadeDelete" {
 			logMsg = fmt.Sprintf("removing complete secret because of CascadeDelete for reconcile request [%q/%q]",
 				secretManglerObject.GetNamespace(), secretManglerObject.GetName())
 			log.Info(logMsg)
+
+			secretManglerObject.Status.LastAction = "CascadeDelete"
 
 			// secret should be deleted
 			return 2
@@ -321,7 +329,7 @@ func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, newData *map[strin
 			if existingSecret == nil {
 				if returnOnSourceNotFound {
 					return false
-			}
+				}
 				continue
 			}
 
@@ -356,7 +364,7 @@ func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, givenData *map[s
 		if ok == false {
 			log.Info("cannot obtain data, cannot go on ..")
 			return nil
-	}
+		}
 	} else {
 		newData = *givenData
 	}
@@ -384,60 +392,8 @@ func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, givenData *map[s
 	return newSecret
 }
 
-func OldSecretBuilder(cr *v1alpha1.SecretMangler) *v1.Secret {
-	return &v1.Secret{
-		ObjectMeta: v12.ObjectMeta{
-			Name:      cr.Spec.SecretTemplate.Name,
-			Namespace: cr.Spec.SecretTemplate.Namespace,
-			// Labels: cr.Spec.SecretTemplate.Label,*
-		},
-		// Data: map[string][]byte{
-		// 	AdminUsernameProperty: []byte("admin"),
-		// 	AdminPasswordProperty: []byte(GenerateRandomString(10)),
-		// },
-		Data: map[string][]byte{
-			"test": []byte("ZGVydGVzdGRlcg=="),
-		},
-		// Data: cr.Spec.SecretTemplate.Mappings,
-		Type: "Opaque",
-	}
-}
-
-// secret := &v1.Secret{
-// 	ObjectMeta: v1.ObjectMeta{
-// 		Name: tls.SecretName,
-// 	},
-// 	Data: map[string][]byte{
-// 		v1.TLSCertKey:       cert,
-// 		v1.TLSPrivateKeyKey: key,
-// 	},
-// }
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *SecretManglerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// set up a real clock, since we're not in a test
-	// if r.Clock == nil {
-	// 	r.Clock = realClock{}
-	// }
-
-	// if err := mgr.GetFieldIndexer().IndexField(context.Background(), &kbatch.Job{}, jobOwnerKey, func(rawObj client.Object) []string {
-	// 	// grab the job object, extract the owner...
-	// 	job := rawObj.(*kbatch.Job)
-	// 	owner := metav1.GetControllerOf(job)
-	// 	if owner == nil {
-	// 		return nil
-	// 	}
-	// 	// ...make sure it's a CronJob...
-	// 	if owner.APIVersion != apiGVStr || owner.Kind != "CronJob" {
-	// 		return nil
-	// 	}
-
-	// 	// ...and if so, return it
-	// 	return []string{owner.Name}
-	// }); err != nil {
-	// 	return err
-	// }
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&secretmanglerwreineratv1alpha1.SecretMangler{}).
 		Owns(&v1.Secret{}).

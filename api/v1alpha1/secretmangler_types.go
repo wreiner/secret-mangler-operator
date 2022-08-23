@@ -36,7 +36,8 @@ type SecretManglerSpec struct {
 type SecretManglerStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	SecretCreated bool `json:"secretCreated"`
+	SecretCreated bool   `json:"secretCreated"`
+	LastAction    string `json:"lastAction"`
 }
 
 // CascadeMode describes edge cases in handling secret syncing.
@@ -47,8 +48,8 @@ type SecretManglerStatus struct {
 type CascadeMode string
 
 const (
-	// KeepNoAction keeps the secret it was initially created and no sync of
-	// changes in referenced secrets is performed.
+	// KeepNoAction keeps the secret the way it was initially created and no
+	// sync of changes in referenced secrets is performed.
 	KeepNoAction CascadeMode = "KeepNoAction"
 
 	// KeepLostSync tries to sync data from referenced secrets.
@@ -84,6 +85,8 @@ type SecretTemplateStruct struct {
 //+kubebuilder:subresource:status
 
 // SecretMangler is the Schema for the secretmanglers API
+// +kubebuilder:printcolumn:name="SecretCreated",type=boolean,JSONPath=`.status.secretCreated`
+// +kubebuilder:printcolumn:name="LastAction",type=string,JSONPath=`.status.lastAction`
 type SecretMangler struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
