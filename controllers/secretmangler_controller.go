@@ -213,9 +213,13 @@ func CompareExistingSecretDataToNewData(secretManglerObject *v1alpha1.SecretMang
 
 		// https://stackoverflow.com/a/36463704
 		if val, ok := (*newData)[checkKey]; ok {
-			// when the key is found in the new map it is already newest
-			// so nothing is todo in this case so we can continue on
 			fmt.Printf("found key [%s: %b] in newData\n", checkKey, val)
+
+			// key is found but values are different so we need an update
+			if comp := bytes.Compare(val, checkValue); comp != 0 {
+				needUpdate = true
+			}
+
 			continue
 		}
 
