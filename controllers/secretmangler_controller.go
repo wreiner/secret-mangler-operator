@@ -253,6 +253,12 @@ func CompareExistingSecretDataToNewData(secretManglerObject *v1alpha1.SecretMang
 			secretManglerObject.GetNamespace(), secretManglerObject.GetName())
 		log.Info(logMsg)
 		return 2
+	} else {
+		// if newData len is bigger than existingSecretData there is new data
+		// which was not in the existing before, most probably because of RemoveLostSync
+		if len(*newData) > len(*existingSecretData) {
+			needUpdate = true
+		}
 	}
 
 	if needUpdate == true {
