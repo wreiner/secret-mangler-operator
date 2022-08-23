@@ -94,9 +94,12 @@ func (r *SecretManglerReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		// work on a previously created secret
 		log.Info("found existing secret, will check fields ..")
 
+		cascadeMode := secretMangler.Spec.SecretTemplate.CascadeMode
+
 		// with KeepNoAction the existing secret which was created on an earlier run will be kept as is
-		if secretMangler.Spec.SecretTemplate.CascadeMode == "KeepNoAction" {
-			msg = fmt.Sprintf("will not attempt sync because cascademode KeepNoAction ..")
+		// KeepNoAction is also the default behaviour if cascadeMode is not set.
+		if cascadeMode == "" || cascadeMode == "KeepNoAction" {
+			msg = fmt.Sprintf("will not attempt sync because cascadeMode KeepNoAction ..")
 			log.Info(msg)
 
 			return ctrl.Result{}, nil
