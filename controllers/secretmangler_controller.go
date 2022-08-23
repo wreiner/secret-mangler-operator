@@ -340,13 +340,19 @@ func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, newData *map[strin
 // SecretBuilder generates a secret based on a SecretMangler object with all data and metadata.
 // The secret will not be applied to the Kubernetes cluster.
 func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, givenData *map[string][]byte, r *SecretManglerReconciler, ctx context.Context) *v1.Secret {
+	log := log.FromContext(ctx)
+
 	// Build the data mappings of the secret if it is not given
 	newData := make(map[string][]byte)
-	if givenData == nil {
-		error := DataBuilder(secretManglerObject, &newData, true, r, ctx)
-		if error == false {
+	if givenData == nil || len((*givenData)) == 0 {
+		log.Info("no data or emtpy data given to SecretBuilder, trying to obtain data ..")
+		ok := DataBuilder(secretManglerObject, &newData, true, r, ctx)
+		if ok == false {
+			log.Info("cannot obtain data, cannot go on ..")
 			return nil
 	}
+	} else {
+		newData = *givenData
 	}
 
 	// Build the whole secret
@@ -365,8 +371,7 @@ func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, givenData *map[s
 	// to clean up secrets when we delete the SecretMangler, and allows controller-runtime to figure out
 	// which SecretMangler needs to be reconciled when a given secret changes (is added, deleted, completes, etc).
 	if err := ctrl.SetControllerReference(secretManglerObject, newSecret, r.Scheme); err != nil {
-		fmt.Println("error in reference")
-		fmt.Print(err)
+		log.Error(err, "error in setting owner reference to secret")
 		return nil
 	}
 
