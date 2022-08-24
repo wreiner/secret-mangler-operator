@@ -30,12 +30,9 @@ The _dynamicmapping_ field explained:
 ```
 <[NAMESPACE/]OBJECT_NAME:LOOKUP_FIELD>
 [NAMESPACE/] 	..  namespace of the referenced secret
-                  if omitted the current current namespace is used
-                    connecting to other namespaces should be avoided due to edge cases
-                    if not avoided edge case behaviour needs to be clearly documented
-                    (see further down about edge cases)
-OBJECT_NAME   ..  the name of the referenced secret
-LOOKUP_FIELD  ..  the key value of the Data field of the referenced secret
+                  If omitted the namespace of the SecretMangler object is used.
+OBJECT_NAME   ..  name of the referenced secret
+LOOKUP_FIELD  ..  key value of the Data field of the referenced secret
 ```
 
 Please note: The SecretMangler object needs to be added in the same namespace as the secret it should generate.
