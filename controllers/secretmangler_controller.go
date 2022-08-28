@@ -178,14 +178,15 @@ func IsLookupString(lookupString string) (isLookupString bool) {
 // If no namespace was given an empty string will be returned instead of a namespace.
 // If the lookupString does not at least contain a secret and a field reference false will be returned for ok.
 func ParseLookupString(lookupString string) (namespaceName string, existingSecretName string, existingSecretField string, ok bool) {
-	var newFieldValue string
+	// remove unneeded characters
+	newFieldValue := strings.TrimLeft(lookupString, "<")
+	newFieldValue = strings.TrimRight(newFieldValue, ">")
 
 	// split by / indicates a provided namespace of the secret to lookup
 	splitArray := strings.Split(lookupString, "/")
 	if len(splitArray) > 1 {
-		// remove now unneeded characters
-		namespaceName = strings.TrimLeft(splitArray[0], "<")
-		newFieldValue = strings.TrimRight(splitArray[1], ">")
+		namespaceName = splitArray[0]
+		newFieldValue = splitArray[1]
 	}
 
 	// split by : delimits the scret name and the lookup field in the secret
