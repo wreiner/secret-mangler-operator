@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -25,6 +26,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // +kubebuilder:docs-gen:collapse=Imports
@@ -34,6 +36,13 @@ var _ = Describe("SecretMangler object", func() {
 	const (
 		SecretManglerName      = "base-mangler"
 		SecretManglerNamespace = "default"
+
+		NewSecretName          = "new-secret"
+		NewSecretNameNamespace = "default"
+
+		timeout  = time.Second * 10
+		duration = time.Second * 10
+		interval = time.Millisecond * 250
 	)
 
 	Context("When creating a SecretMangler object", func() {
@@ -59,15 +68,15 @@ var _ = Describe("SecretMangler object", func() {
 					Kind:       "SecretMangler",
 				},
 				ObjectMeta: v12.ObjectMeta{
-					Name:      "base-mangler",
-					Namespace: "default",
+					Name:      SecretManglerName,
+					Namespace: SecretManglerNamespace,
 				},
 				Spec: v1alpha1.SecretManglerSpec{
 					SecretTemplate: v1alpha1.SecretTemplateStruct{
 						APIVersion:  "v1",
 						Kind:        "Secret",
-						Name:        "new-secret",
-						Namespace:   "default",
+						Name:        NewSecretName,
+						Namespace:   NewSecretNameNamespace,
 						CascadeMode: "KeepNoAction",
 						Mappings: map[string]string{
 							"dynamicmapping": "<reference-secret:test>",
@@ -77,6 +86,19 @@ var _ = Describe("SecretMangler object", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, secretManglerObject)).Should(Succeed())
+
+			newSecretLookupKey := types.NamespacedName{Name: NewSecretName, Namespace: NewSecretNameNamespace}
+			newSecret := &v1.Secret{}
+
+			// We'll need to retry getting this newly created Secret, given that creation may not immediately happen.
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, newSecretLookupKey, newSecret)
+				if err != nil {
+					return false
+				}
+				return true
+			}, timeout, interval).Should(BeTrue())
+			Expect(len(newSecret.Data)).Should(Equal(2))
 		})
 	})
 })
