@@ -356,7 +356,7 @@ func SecretBuilder(secretManglerObject *v1alpha1.SecretMangler, givenData *map[s
 	// Build the data mappings of the secret if it is not given
 	newData := make(map[string][]byte)
 	if givenData == nil || len((*givenData)) == 0 {
-		log.Info("no data or emtpy data given to SecretBuilder, trying to obtain data ..")
+		log.Info("no data or empty data given to SecretBuilder, trying to obtain data ..")
 		ok := DataBuilder(secretManglerObject, &newData, true, r, ctx)
 		if ok == false {
 			log.Info("cannot obtain data, cannot go on ..")
