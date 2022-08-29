@@ -1,5 +1,7 @@
 # secret-mangler-operator
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/wreiner/secret-mangler-operator)](https://goreportcard.com/report/github.com/wreiner/secret-mangler-operator)
+
 SecretMangler is a Kubernetes operator used to create secrets based on parts of other secrets or to mirror existing secrets.
 
 ## CRD explaination
@@ -107,3 +109,4 @@ If mappings is defined mirror can not be defined too.
 
 * [CODE4104: Let's build a Kubernetes Operator in Go! with Michael Gasch & Rafael Brito](https://www.youtube.com/watch?v=8Ex7ybi273g)
   * [Example Source Code](https://github.com/embano1/codeconnect-vm-operator)
+* [Additional kubectl get output](https://www.brendanp.com/pretty-printing-with-kubebuilder/)
