@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"reflect"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -45,8 +46,14 @@ var _ = Describe("SecretMangler object", func() {
 		interval = time.Millisecond * 250
 	)
 
-	Context("When creating a SecretMangler object", func() {
+	Context("When creating a SecretMangler object with the reference in the same namespace", func() {
 		It("Should create a new secret with parts of the reference-secret", func() {
+
+			// build testmap to test created secret
+			testmap := make(map[string][]byte)
+			testmap["dynamicmapping"] = []byte("ZGVydGVzdGRlcg==")
+			testmap["fixedmapping"] = []byte("fixed-test")
+
 			By("By creating a new reference secret")
 			ctx := context.Background()
 			referenceSecret := &v1.Secret{
@@ -98,7 +105,11 @@ var _ = Describe("SecretMangler object", func() {
 				}
 				return true
 			}, timeout, interval).Should(BeTrue())
-			Expect(len(newSecret.Data)).Should(Equal(2))
+			Expect(reflect.DeepEqual(testmap, newSecret.Data)).Should(BeTrue())
+
+			// cleanup
+			Expect(k8sClient.Delete(ctx, secretManglerObject)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, referenceSecret)).Should(Succeed())
 		})
 	})
 })
