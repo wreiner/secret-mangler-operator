@@ -183,7 +183,7 @@ func ParseLookupString(lookupString string) (namespaceName string, existingSecre
 	newFieldValue = strings.TrimRight(newFieldValue, ">")
 
 	// split by / indicates a provided namespace of the secret to lookup
-	splitArray := strings.Split(lookupString, "/")
+	splitArray := strings.Split(newFieldValue, "/")
 	if len(splitArray) > 1 {
 		namespaceName = splitArray[0]
 		newFieldValue = splitArray[1]
