@@ -123,9 +123,9 @@ var _ = Describe("SecretMangler object 2", func() {
 			Expect(reflect.DeepEqual(testmap, newSecret.Data)).Should(BeTrue())
 
 			// cleanup
-			// Expect(k8sClient.Delete(ctx, secretManglerObject)).Should(Succeed())
-			// Expect(k8sClient.Delete(ctx, referenceSecret)).Should(Succeed())
-			// Expect(k8sClient.Delete(ctx, newNameSpace)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, secretManglerObject)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, referenceSecret)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, newNameSpace)).Should(Succeed())
 		})
 	})
 })
