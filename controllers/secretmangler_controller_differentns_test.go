@@ -33,7 +33,7 @@ import (
 
 // +kubebuilder:docs-gen:collapse=Imports
 
-var _ = Describe("SecretMangler object 2", func() {
+var _ = Describe("SecretMangler object different namespace KeepNoAction", func() {
 
 	const (
 		SecretManglerName      = "base-mns-mangler"

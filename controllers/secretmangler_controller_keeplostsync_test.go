@@ -32,21 +32,21 @@ import (
 
 // +kubebuilder:docs-gen:collapse=Imports
 
-var _ = Describe("SecretMangler object single namespace KeepNoAction", func() {
+var _ = Describe("SecretMangler object single namespace KeepLostSync", func() {
 
 	const (
 		SecretManglerName      = "base-mangler"
-		SecretManglerNamespace = "default"
+		SecretManglerNamespace = "sns-kls"
 
 		NewSecretName          = "new-secret"
-		NewSecretNameNamespace = "default"
+		NewSecretNameNamespace = "sns-kls"
 
 		timeout  = time.Second * 10
 		duration = time.Second * 10
 		interval = time.Millisecond * 250
 	)
 
-	Context("When creating a SecretMangler object with the reference in the same namespace", func() {
+	Context("When creating a SecretMangler object with the reference in the same namespace for KeepLostSync", func() {
 		It("Should create a new secret with parts of the reference-secret", func() {
 
 			// build testmap to test created secret
@@ -54,8 +54,17 @@ var _ = Describe("SecretMangler object single namespace KeepNoAction", func() {
 			testmap["dynamicmapping"] = []byte("ZGVydGVzdGRlcg==")
 			testmap["fixedmapping"] = []byte("fixed-test")
 
-			By("By creating a new reference secret")
 			ctx := context.Background()
+
+			By("By creating a new namespace")
+			newNameSpace := &v1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: SecretManglerNamespace,
+				},
+			}
+			Expect(k8sClient.Create(ctx, newNameSpace)).Should(Succeed())
+
+			By("By creating a new reference secret")
 			referenceSecret := &v1.Secret{
 				ObjectMeta: v12.ObjectMeta{
 					Name:      "reference-secret",
@@ -84,7 +93,7 @@ var _ = Describe("SecretMangler object single namespace KeepNoAction", func() {
 						Kind:        "Secret",
 						Name:        NewSecretName,
 						Namespace:   NewSecretNameNamespace,
-						CascadeMode: "KeepNoAction",
+						CascadeMode: "KeepLostSync",
 						Mappings: map[string]string{
 							"dynamicmapping": "<reference-secret:test>",
 							"fixedmapping":   "fixed-test",
@@ -107,9 +116,22 @@ var _ = Describe("SecretMangler object single namespace KeepNoAction", func() {
 			}, timeout, interval).Should(BeTrue())
 			Expect(reflect.DeepEqual(testmap, newSecret.Data)).Should(BeTrue())
 
+			// Remove secret and check that the lost sync data is still present
+			Expect(k8sClient.Delete(ctx, referenceSecret)).Should(Succeed())
+
+			newSecret = &v1.Secret{}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, newSecretLookupKey, newSecret)
+				if err != nil {
+					return false
+				}
+				return true
+			}, timeout, interval).Should(BeTrue())
+			Expect(reflect.DeepEqual(testmap, newSecret.Data)).Should(BeTrue())
+
 			// cleanup
 			Expect(k8sClient.Delete(ctx, secretManglerObject)).Should(Succeed())
-			Expect(k8sClient.Delete(ctx, referenceSecret)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, newNameSpace)).Should(Succeed())
 		})
 	})
 })
