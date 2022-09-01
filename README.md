@@ -105,6 +105,26 @@ If mirror is defined the referenced secret data is mirrored as a whole and also 
 
 If mappings is defined mirror can not be defined too.
 
+## Tests
+
+To run the tests change into the controllers directory and either use
+
+```
+export USE_EXISTING_CLUSTER=true
+go test ./...
+```
+
+or use [Ginkgo](https://onsi.github.io/ginkgo/):
+
+```
+export USE_EXISTING_CLUSTER=true
+go install github.com/onsi/ginkgo/ginkgo@latest
+export PATH=$PATH:~/go/bin
+ginkgo -r
+```
+
+Using Ginkgo directly runs tests sequentially, using go test runs them in parallel.
+
 ## Sources
 
 * [CODE4104: Let's build a Kubernetes Operator in Go! with Michael Gasch & Rafael Brito](https://www.youtube.com/watch?v=8Ex7ybi273g)
