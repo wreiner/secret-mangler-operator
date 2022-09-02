@@ -210,11 +210,11 @@ func CompareExistingSecretDataToNewData(secretManglerObject *v1alpha1.SecretMang
 	needUpdate := false
 
 	for checkKey, checkValue := range *existingSecretData {
-		fmt.Printf("got [%s: %b] ..\n", checkKey, checkValue)
+		// fmt.Printf("got [%s: %b] ..\n", checkKey, checkValue)
 
 		// https://stackoverflow.com/a/36463704
 		if val, ok := (*newData)[checkKey]; ok {
-			fmt.Printf("found key [%s: %b] in newData\n", checkKey, val)
+			// fmt.Printf("found key [%s: %b] in newData\n", checkKey, val)
 
 			// key is found but values are different so we need an update
 			if comp := bytes.Compare(val, checkValue); comp != 0 {
@@ -301,11 +301,11 @@ func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, newData *map[strin
 	}
 
 	for newField, newFieldValue := range secretManglerObject.Spec.SecretTemplate.Mappings {
-		fmt.Println("newField:", newField, "newFieldValue:", newFieldValue)
+		// fmt.Println("newField:", newField, "newFieldValue:", newFieldValue)
 
 		// check if value should be treated as a lookupString
 		if IsLookupString(newFieldValue) {
-			fmt.Printf("value of field %s indicates a dynamic field\n", newField)
+			// fmt.Printf("value of field %s indicates a dynamic field\n", newField)
 
 			namespaceName, existingSecretName, existingSecretField, ok := ParseLookupString(newFieldValue)
 			if ok == false {
@@ -332,17 +332,17 @@ func DataBuilder(secretManglerObject *v1alpha1.SecretMangler, newData *map[strin
 
 			// https://stackoverflow.com/a/2050629
 			if existingSecretFieldValue, found := existingSecret.Data[existingSecretField]; found {
-				fmt.Printf("will add %s: %s to newData ..\n", newField, existingSecretFieldValue)
+				// fmt.Printf("will add %s: %s to newData ..\n", newField, existingSecretFieldValue)
 				(*newData)[newField] = existingSecretFieldValue
 			}
 		} else {
-			fmt.Printf("will add %s: %s to newData ..\n", newField, newFieldValue)
+			// fmt.Printf("will add %s: %s to newData ..\n", newField, newFieldValue)
 
 			// fixed value can be added as is
 			(*newData)[newField] = []byte(newFieldValue)
 		}
 
-		fmt.Println("----")
+		// fmt.Println("----")
 	}
 
 	return true
@@ -397,15 +397,15 @@ func (r *SecretManglerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&source.Kind{Type: &v1.Secret{}},
 			handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
-				fmt.Println("in watches function")
+				// fmt.Println("in watches function")
 				secret, ok := obj.(*v1.Secret)
 				if !ok {
 					// FIXME
-					fmt.Println("secret is nil?")
+					// fmt.Println("secret is nil?")
 					return nil
 				}
 
-				fmt.Printf("Secret [%s/%s] changed, checking for corresponding SecretMangler object ..\n", secret.Namespace, secret.Name)
+				// fmt.Printf("Secret [%s/%s] changed, checking for corresponding SecretMangler object ..\n", secret.Namespace, secret.Name)
 
 				var reconcileRequests []reconcile.Request
 				secretManglerList := &secretmanglerwreineratv1alpha1.SecretManglerList{}
@@ -416,9 +416,9 @@ func (r *SecretManglerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					return []reconcile.Request{}
 				}
 
-				fmt.Println("will iterate over SecretMangler objects and their mappings/mirrors ..")
+				// fmt.Println("will iterate over SecretMangler objects and their mappings/mirrors ..")
 				for _, secretManglerObj := range secretManglerList.Items {
-					fmt.Printf("got SecretMangler object [%s/%s]\n", secretManglerObj.Namespace, secretManglerObj.Name)
+					// fmt.Printf("got SecretMangler object [%s/%s]\n", secretManglerObj.Namespace, secretManglerObj.Name)
 
 					// FIXME needed when mirror is implemented
 					// if secretManglerObj.Spec.SecretTemplate.Mirror != "" {
@@ -429,13 +429,12 @@ func (r *SecretManglerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 							if IsLookupString(fieldValue) {
 								// get namespace and name from the dynamic field
 								// if current secret is part of the dynamic field add to reconciliation request
-								fmt.Printf("value [%s] of field %s indicates a dynamic field\n", fieldValue, field)
+								// fmt.Printf("value [%s] of field %s indicates a dynamic field\n", fieldValue, field)
 
 								referencedSecretNamespaceName, referencedSecretName, _, ok := ParseLookupString(fieldValue)
 								if ok == false {
 									logMsg := fmt.Sprintf("dynamic mapping %s contains a faulty lookup string %s", field, fieldValue)
-									// FIXME log correctly
-									// log.Error(logMsg)
+									// no ctx for logging available?
 									fmt.Println(logMsg)
 									return nil
 								}
@@ -449,11 +448,11 @@ func (r *SecretManglerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 										referencedSecretNamespaceName = secretManglerObj.Namespace
 									}
 
-									fmt.Printf("found reference to [%s/%s]\n", referencedSecretNamespaceName, referencedSecretName)
+									// fmt.Printf("found reference to [%s/%s]\n", referencedSecretNamespaceName, referencedSecretName)
 
 									// check if the secret is in the same namespace
 									if referencedSecretNamespaceName == secret.Namespace {
-										fmt.Printf("will add SecretMangler object [%s/%s] to reconciliation requests ..\n", secretManglerObj.Namespace, secretManglerObj.Name)
+										// fmt.Printf("will add SecretMangler object [%s/%s] to reconciliation requests ..\n", secretManglerObj.Namespace, secretManglerObj.Name)
 										// append secretMangler to reconcileRequests
 										reconcileRequests = append(reconcileRequests, reconcile.Request{
 											NamespacedName: types.NamespacedName{
@@ -471,8 +470,8 @@ func (r *SecretManglerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					}
 				}
 
-				fmt.Println("will leave watches function")
-				fmt.Println("------ watch ------")
+				// fmt.Println("will leave watches function")
+				// fmt.Println("------ watch ------")
 				return reconcileRequests
 			}),
 		).

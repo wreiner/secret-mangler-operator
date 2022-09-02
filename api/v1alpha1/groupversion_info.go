@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1alpha1 contains API Schema definitions for the secret-mangler.wreiner.at v1alpha1 API group
-//+kubebuilder:object:generate=true
-//+groupName=secret-mangler.wreiner.at
+// +kubebuilder:object:generate=true
+// +groupName=secret-mangler.wreiner.at
 package v1alpha1
 
 import (
