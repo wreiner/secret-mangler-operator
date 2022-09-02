@@ -105,7 +105,6 @@ var _ = Describe("SecretMangler object single namespace KeepLostSync", func() {
 
 			newSecretLookupKey := types.NamespacedName{Name: NewSecretName, Namespace: NewSecretNameNamespace}
 			newSecret := &v1.Secret{}
-
 			// We'll need to retry getting this newly created Secret, given that creation may not immediately happen.
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, newSecretLookupKey, newSecret)
@@ -121,7 +120,15 @@ var _ = Describe("SecretMangler object single namespace KeepLostSync", func() {
 
 			newSecret = &v1.Secret{}
 			Eventually(func() bool {
-				err := k8sClient.Get(ctx, newSecretLookupKey, newSecret)
+				secretManglerLookup := types.NamespacedName{Name: SecretManglerName, Namespace: SecretManglerNamespace}
+				err := k8sClient.Get(ctx, secretManglerLookup, secretManglerObject)
+				if err != nil {
+					return false
+				}
+				if secretManglerObject.Status.LastAction != "KeepLostSync" {
+					return false
+				}
+				err = k8sClient.Get(ctx, newSecretLookupKey, newSecret)
 				if err != nil {
 					return false
 				}

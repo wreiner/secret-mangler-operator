@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -32,52 +33,75 @@ import (
 
 // +kubebuilder:docs-gen:collapse=Imports
 
-var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() {
+var _ = Describe("SecretMangler object different namespace KeepLostSync", func() {
 
 	const (
 		SecretManglerName      = "base-mangler"
-		SecretManglerNamespace = "sns-rls"
+		SecretManglerNamespace = "sns-mns-kls"
 
 		NewSecretName          = "new-secret"
-		NewSecretNameNamespace = "sns-rls"
+		NewSecretNameNamespace = "sns-mns-kls"
+
+		FirstReferenceSecretName          = "first-ref-secret"
+		FirstReferenceSecretNameNamespace = "sns-mns-kls"
+
+		SecondReferenceSecretName          = "second-ref-secret"
+		SecondReferenceSecretNameNamespace = "sns-mns-kls-2"
 
 		timeout  = time.Second * 10
 		duration = time.Second * 10
 		interval = time.Millisecond * 250
 	)
 
-	Context("When creating a SecretMangler object with the reference in the same namespace for RemoveLostSync", func() {
-		It("Should create a new secret with parts of the reference-secret", func() {
-
-			// build testmap to test created secret
-			testmap := make(map[string][]byte)
-			testmap["dynamicmapping"] = []byte("ZGVydGVzdGRlcg==")
-			testmap["fixedmapping"] = []byte("fixed-test")
+	Context("When creating a SecretMangler object with multiple reference secrets in multiple namespaces for KeepLostSync", func() {
+		It("Should create a new secret with parts of the reference secrets", func() {
 
 			ctx := context.Background()
 
 			By("By creating a new namespace")
-			newNameSpace := &v1.Namespace{
+			firstNameSpace := &v1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: SecretManglerNamespace,
+					Name: FirstReferenceSecretNameNamespace,
 				},
 			}
-			Expect(k8sClient.Create(ctx, newNameSpace)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, firstNameSpace)).Should(Succeed())
+
+			By("By creating a second namespace")
+			secondNameSpace := &v1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: SecondReferenceSecretNameNamespace,
+				},
+			}
+			Expect(k8sClient.Create(ctx, secondNameSpace)).Should(Succeed())
 
 			By("By creating a new reference secret")
-			referenceSecret := &v1.Secret{
+			firstReferenceSecret := &v1.Secret{
 				ObjectMeta: v12.ObjectMeta{
-					Name:      "reference-secret",
-					Namespace: SecretManglerNamespace,
+					Name:      FirstReferenceSecretName,
+					Namespace: FirstReferenceSecretNameNamespace,
 				},
 				Data: map[string][]byte{
 					"test": []byte("ZGVydGVzdGRlcg=="),
 				},
 				Type: "Opaque",
 			}
-			Expect(k8sClient.Create(ctx, referenceSecret)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, firstReferenceSecret)).Should(Succeed())
+
+			By("By creating a second reference secret")
+			secondReferenceSecret := &v1.Secret{
+				ObjectMeta: v12.ObjectMeta{
+					Name:      SecondReferenceSecretName,
+					Namespace: SecondReferenceSecretNameNamespace,
+				},
+				Data: map[string][]byte{
+					"test-2": []byte("ZGVydGVzdGRlcg=="),
+				},
+				Type: "Opaque",
+			}
+			Expect(k8sClient.Create(ctx, secondReferenceSecret)).Should(Succeed())
 
 			By("By creating a SecretMangler object")
+			lookupString := fmt.Sprintf("<%s/%s:%s>", SecondReferenceSecretNameNamespace, SecondReferenceSecretName, "test-2")
 			secretManglerObject := &v1alpha1.SecretMangler{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "secret-mangler.wreiner.at/v1alpha1",
@@ -93,10 +117,11 @@ var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() 
 						Kind:        "Secret",
 						Name:        NewSecretName,
 						Namespace:   NewSecretNameNamespace,
-						CascadeMode: "RemoveLostSync",
+						CascadeMode: "KeepLostSync",
 						Mappings: map[string]string{
-							"dynamicmapping": "<reference-secret:test>",
-							"fixedmapping":   "fixed-test",
+							"dynamicmapping":  "<first-ref-secret:test>",
+							"dynamicmapping2": lookupString,
+							"fixedmapping":    "fixed-test",
 						},
 					},
 				},
@@ -105,6 +130,12 @@ var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() 
 
 			newSecretLookupKey := types.NamespacedName{Name: NewSecretName, Namespace: NewSecretNameNamespace}
 			newSecret := &v1.Secret{}
+
+			// build testmap to test created secret
+			testmap := make(map[string][]byte)
+			testmap["dynamicmapping"] = []byte("ZGVydGVzdGRlcg==")
+			testmap["dynamicmapping2"] = []byte("ZGVydGVzdGRlcg==")
+			testmap["fixedmapping"] = []byte("fixed-test")
 
 			// We'll need to retry getting this newly created Secret, given that creation may not immediately happen.
 			Eventually(func() bool {
@@ -116,12 +147,8 @@ var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() 
 			}, timeout, interval).Should(BeTrue())
 			Expect(reflect.DeepEqual(testmap, newSecret.Data)).Should(BeTrue())
 
-			// build testmap to test created secret
-			testmap = make(map[string][]byte)
-			testmap["fixedmapping"] = []byte("fixed-test")
-
-			// Remove secret and check that the lost sync data is still present
-			Expect(k8sClient.Delete(ctx, referenceSecret)).Should(Succeed())
+			// Remove one secret and check that the lost sync data is still present
+			Expect(k8sClient.Delete(ctx, secondReferenceSecret)).Should(Succeed())
 
 			newSecret = &v1.Secret{}
 			Eventually(func() bool {
@@ -130,7 +157,7 @@ var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() 
 				if err != nil {
 					return false
 				}
-				if secretManglerObject.Status.LastAction != "RemoveLostSync" {
+				if secretManglerObject.Status.LastAction != "KeepLostSync" {
 					return false
 				}
 				err = k8sClient.Get(ctx, newSecretLookupKey, newSecret)
@@ -143,7 +170,9 @@ var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() 
 
 			// cleanup
 			Expect(k8sClient.Delete(ctx, secretManglerObject)).Should(Succeed())
-			Expect(k8sClient.Delete(ctx, newNameSpace)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, firstReferenceSecret)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, firstNameSpace)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, secondNameSpace)).Should(Succeed())
 		})
 	})
 })

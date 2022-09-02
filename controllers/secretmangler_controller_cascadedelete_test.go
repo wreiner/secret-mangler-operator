@@ -32,21 +32,21 @@ import (
 
 // +kubebuilder:docs-gen:collapse=Imports
 
-var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() {
+var _ = Describe("SecretMangler object single namespace CascadeDelete", func() {
 
 	const (
 		SecretManglerName      = "base-mangler"
-		SecretManglerNamespace = "sns-rls"
+		SecretManglerNamespace = "sns-cc"
 
 		NewSecretName          = "new-secret"
-		NewSecretNameNamespace = "sns-rls"
+		NewSecretNameNamespace = "sns-cc"
 
 		timeout  = time.Second * 10
 		duration = time.Second * 10
 		interval = time.Millisecond * 250
 	)
 
-	Context("When creating a SecretMangler object with the reference in the same namespace for RemoveLostSync", func() {
+	Context("When creating a SecretMangler object with the reference in the same namespace for CascadeDelete", func() {
 		It("Should create a new secret with parts of the reference-secret", func() {
 
 			// build testmap to test created secret
@@ -93,7 +93,7 @@ var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() 
 						Kind:        "Secret",
 						Name:        NewSecretName,
 						Namespace:   NewSecretNameNamespace,
-						CascadeMode: "RemoveLostSync",
+						CascadeMode: "CascadeDelete",
 						Mappings: map[string]string{
 							"dynamicmapping": "<reference-secret:test>",
 							"fixedmapping":   "fixed-test",
@@ -120,7 +120,7 @@ var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() 
 			testmap = make(map[string][]byte)
 			testmap["fixedmapping"] = []byte("fixed-test")
 
-			// Remove secret and check that the lost sync data is still present
+			// Remove secret and check that the secret is removed
 			Expect(k8sClient.Delete(ctx, referenceSecret)).Should(Succeed())
 
 			newSecret = &v1.Secret{}
@@ -130,7 +130,7 @@ var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() 
 				if err != nil {
 					return false
 				}
-				if secretManglerObject.Status.LastAction != "RemoveLostSync" {
+				if secretManglerObject.Status.LastAction != "CascadeDelete" {
 					return false
 				}
 				err = k8sClient.Get(ctx, newSecretLookupKey, newSecret)
@@ -138,8 +138,7 @@ var _ = Describe("SecretMangler object single namespace RemoveLostSync", func() 
 					return false
 				}
 				return true
-			}, timeout, interval).Should(BeTrue())
-			Expect(reflect.DeepEqual(testmap, newSecret.Data)).Should(BeTrue())
+			}, timeout, interval).Should(BeFalse())
 
 			// cleanup
 			Expect(k8sClient.Delete(ctx, secretManglerObject)).Should(Succeed())
