@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  secret-mangler-operator:
+  - apiVersion: v2
+    appVersion: 0.1.0RC1
+    created: "2022-09-16T19:00:01.740568286+02:00"
+    description: A Helm chart to install secret-mangler-operator.
+    digest: f4661677530762df22041c263062982e876c075f4551a66f29add910136c48bf
+    name: secret-mangler-operator
+    type: application
+    urls:
+    - secret-mangler-operator-0.1.0.tgz
+    version: 0.1.0
+generated: "2022-09-16T19:00:01.740177619+02:00"
