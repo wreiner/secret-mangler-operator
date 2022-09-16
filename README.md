@@ -59,6 +59,8 @@ On initial secret creation the secret is only created if _all_ dynamic field map
 | CascadeDelete  | Removes the secret entirely if only one source is lost no matter whether other sources are still present or not.                                                                                                                                |
 
 For all modes if the data part of the secret would be empty the secret is being removed entirely.
+
+
 #### Workflow
 
 * Initial secret creation
@@ -71,6 +73,17 @@ For all modes if the data part of the secret would be empty the secret is being 
     * [X] if no more sources and no fixedmapping is present delete the secret
   * [X] CascadeDelete = cascade delete - if one source was deleted remove the complete generated secret
 
+## Installation
+
+### Install secret-mangler-operator using Helm
+
+To install the secret-mangler-operator using Helm you can use the official helm chart:
+
+```
+helm repo add smo https://wreiner.github.io/secret-mangler-operator
+helm repo update
+helm install smo smo/secret-mangler-operator
+```
 ## ToDo
 
 * [X] subscribe to created secret to handle
