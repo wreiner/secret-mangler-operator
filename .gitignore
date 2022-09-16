@@ -25,3 +25,5 @@ testbin/*
 *~
 
 bak
+*.tar.*
+*.tgz

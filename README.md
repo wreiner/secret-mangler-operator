@@ -125,8 +125,14 @@ ginkgo -r
 
 Using Ginkgo directly runs tests sequentially, using go test runs them in parallel.
 
+## Other possibilities to create secrets from other secrets
+
+* When using Helm use the [lookup function](https://itnext.io/manage-auto-generated-secrets-in-your-helm-charts-5aee48ba6918)
+* Using [Reflector](https://github.com/emberstack/kubernetes-reflector) to mirror secrets and configmaps
+
 ## Sources
 
 * [CODE4104: Let's build a Kubernetes Operator in Go! with Michael Gasch & Rafael Brito](https://www.youtube.com/watch?v=8Ex7ybi273g)
   * [Example Source Code](https://github.com/embano1/codeconnect-vm-operator)
 * [Additional kubectl get output](https://www.brendanp.com/pretty-printing-with-kubebuilder/)
+* [Additional functionalities like health checks](https://medium.com/swlh/advanced-kubernetes-operators-development-988edad5f58a)
