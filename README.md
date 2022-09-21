@@ -142,6 +142,7 @@ Using Ginkgo directly runs tests sequentially, using go test runs them in parall
 
 * When using Helm use the [lookup function](https://itnext.io/manage-auto-generated-secrets-in-your-helm-charts-5aee48ba6918)
 * Using [Reflector](https://github.com/emberstack/kubernetes-reflector) to mirror secrets and configmaps
+* Using [Red Hat Service Binding Operator](https://github.com/redhat-developer/service-binding-operator) to project data into pods
 
 ## Sources
 
