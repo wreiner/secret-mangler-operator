@@ -7,4 +7,13 @@ layout:
 - go.kubebuilder.io/v4
 projectName: secret-mangler-operator
 repo: github.com/wreiner/secret-mangler-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: secret-mangler.wreiner.at
+  kind: SecretMangler
+  path: github.com/wreiner/secret-mangler-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"
