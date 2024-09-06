@@ -20,28 +20,65 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // SecretManglerSpec defines the desired state of SecretMangler
 type SecretManglerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of SecretMangler. Edit secretmangler_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// SecretTemplate is the template structure of the new secret to create.
+	SecretTemplate SecretTemplateStruct `json:"secretTemplate"`
 }
 
 // SecretManglerStatus defines the observed state of SecretMangler
 type SecretManglerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	SecretCreated bool   `json:"secretCreated"`
+	LastAction    string `json:"lastAction"`
 }
 
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
+// CascadeMode describes edge cases in handling secret syncing.
+// Only one of the following cascacde modes may be specified.
+// If none of the following modes is specified, the default one
+// is KeepNoAction.
+// +kubebuilder:validation:Enum=KeepNoAction;KeepLostSync;RemoveLostSync;CascadeDelete
+type CascadeMode string
+
+const (
+	// KeepNoAction keeps the secret the way it was initially created and no
+	// sync of changes in referenced secrets is performed.
+	KeepNoAction CascadeMode = "KeepNoAction"
+
+	// KeepLostSync tries to sync data from referenced secrets.
+	// If one or more sources are lost their data is kept as it was synced last.
+	KeepLostSync CascadeMode = "KeepLostSync"
+
+	// RemoveLostSync tries to sync data from referenced secrets.
+	// If one or more sources re lost their data will be removed from the
+	// created secret.
+	// If no more sources are available and no fixed mappings are present the
+	// secret will be removed as a whole.
+	RemoveLostSync CascadeMode = "RemoveLostSync"
+
+	// CascadeDelete removes the secret entirely if only one source is lost no
+	// matter whether other sources are still present or not.
+	CascadeDelete CascadeMode = "CascadeDelete"
+)
+
+type SecretTemplateStruct struct {
+	Name       string `json:"name"`
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Label      string `json:"label,omitempty"`
+	Namespace  string `json:"namespace"`
+	// Label      metav1.LabelSelector `json:"label,omitempty"`
+	// Namespace  metav1.LabelSelector `json:"namespace"`
+	Annotation  map[string]string `json:"annotation,omitempty"`
+	Mappings    map[string]string `json:"mappings"`
+	CascadeMode CascadeMode       `json:"cascadeMode,omitempty"`
+}
+
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
 
 // SecretMangler is the Schema for the secretmanglers API
+// +kubebuilder:printcolumn:name="SecretCreated",type=boolean,JSONPath=`.status.secretCreated`
+// +kubebuilder:printcolumn:name="LastAction",type=string,JSONPath=`.status.lastAction`
 type SecretMangler struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -50,7 +87,7 @@ type SecretMangler struct {
 	Status SecretManglerStatus `json:"status,omitempty"`
 }
 
-// +kubebuilder:object:root=true
+//+kubebuilder:object:root=true
 
 // SecretManglerList contains a list of SecretMangler
 type SecretManglerList struct {
