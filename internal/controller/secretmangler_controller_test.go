@@ -18,67 +18,99 @@ package controller
 
 import (
 	"context"
+	"reflect"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
+	"github.com/wreiner/secret-mangler-operator/api/v1alpha1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	secretmanglerwreineratv1alpha1 "github.com/wreiner/secret-mangler-operator/api/v1alpha1"
+	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = Describe("SecretMangler Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+// +kubebuilder:docs-gen:collapse=Imports
 
-		ctx := context.Background()
+var _ = Describe("SecretMangler object single namespace KeepNoAction", func() {
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
-		}
-		secretmangler := &secretmanglerwreineratv1alpha1.SecretMangler{}
+	const (
+		SecretManglerName      = "base-mangler"
+		SecretManglerNamespace = "default"
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind SecretMangler")
-			err := k8sClient.Get(ctx, typeNamespacedName, secretmangler)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &secretmanglerwreineratv1alpha1.SecretMangler{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
+		NewSecretName          = "new-secret"
+		NewSecretNameNamespace = "default"
+
+		timeout  = time.Second * 10
+		duration = time.Second * 10
+		interval = time.Millisecond * 250
+	)
+
+	Context("When creating a SecretMangler object with the reference in the same namespace", func() {
+		It("Should create a new secret with parts of the reference-secret", func() {
+
+			// build testmap to test created secret
+			testmap := make(map[string][]byte)
+			testmap["dynamicmapping"] = []byte("ZGVydGVzdGRlcg==")
+			testmap["fixedmapping"] = []byte("fixed-test")
+
+			By("By creating a new reference secret")
+			ctx := context.Background()
+			referenceSecret := &v1.Secret{
+				ObjectMeta: v12.ObjectMeta{
+					Name:      "reference-secret",
+					Namespace: SecretManglerNamespace,
+				},
+				Data: map[string][]byte{
+					"test": []byte("ZGVydGVzdGRlcg=="),
+				},
+				Type: "Opaque",
+			}
+			Expect(k8sClient.Create(ctx, referenceSecret)).Should(Succeed())
+
+			By("By creating a SecretMangler object")
+			secretManglerObject := &v1alpha1.SecretMangler{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "secret-mangler.wreiner.at/v1alpha1",
+					Kind:       "SecretMangler",
+				},
+				ObjectMeta: v12.ObjectMeta{
+					Name:      SecretManglerName,
+					Namespace: SecretManglerNamespace,
+				},
+				Spec: v1alpha1.SecretManglerSpec{
+					SecretTemplate: v1alpha1.SecretTemplateStruct{
+						APIVersion:  "v1",
+						Kind:        "Secret",
+						Name:        NewSecretName,
+						Namespace:   NewSecretNameNamespace,
+						CascadeMode: "KeepNoAction",
+						Mappings: map[string]string{
+							"dynamicmapping": "<reference-secret:test>",
+							"fixedmapping":   "fixed-test",
+						},
 					},
-					// TODO(user): Specify other spec details if needed.
+				},
+			}
+			Expect(k8sClient.Create(ctx, secretManglerObject)).Should(Succeed())
+
+			newSecretLookupKey := types.NamespacedName{Name: NewSecretName, Namespace: NewSecretNameNamespace}
+			newSecret := &v1.Secret{}
+
+			// We'll need to retry getting this newly created Secret, given that creation may not immediately happen.
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, newSecretLookupKey, newSecret)
+				if err != nil {
+					return false
 				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
+				return true
+			}, timeout, interval).Should(BeTrue())
+			Expect(reflect.DeepEqual(testmap, newSecret.Data)).Should(BeTrue())
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &secretmanglerwreineratv1alpha1.SecretMangler{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Cleanup the specific resource instance SecretMangler")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &SecretManglerReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
-
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+			// cleanup
+			Expect(k8sClient.Delete(ctx, secretManglerObject)).Should(Succeed())
+			Expect(k8sClient.Delete(ctx, referenceSecret)).Should(Succeed())
 		})
 	})
 })
